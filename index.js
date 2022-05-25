@@ -111,7 +111,8 @@ async function run() {
     console.log('db connected');
     const serviceCollection = client.db('iham-computer-clinic').collection('services');
     const orderCollection = client.db('iham-computer-clinic').collection('orders');
-    // const userCollection = client.db('doctors_portal').collection('users');
+    const userCollection = client.db('iham-computer-clinic').collection('users');
+    const reviewCollection = client.db('iham-computer-clinic').collection('reviews');
     // const doctorCollection = client.db('doctors_portal').collection('doctors');
     // const paymentCollection = client.db('doctors_portal').collection('payments');
 
@@ -131,20 +132,34 @@ async function run() {
       res.send(result);
     });
 
+    //update service
+    app.put('/purchase/:id', async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: ObjectId(id) };
+      const newService = req.body;
+      const { available } = newService;
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: { available },
+      };
+      const result = await serviceCollection.updateOne(query, updateDoc, options);
+      // const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
+      // res.send({ result, token });
+      res.send({ message: 'updated' });
+    });
+
     //sending to orders db
     app.post('/orders', async (req, res) => {
       const order = req.body;
-      console.log(order);
       const result = await orderCollection.insertOne(order);
+      res.send({ success: true });
       // console.log('sending email');
       // sendAppointmentEmail(booking);
       // return 
-      res.send({ success: true });
-      // res.send({ success: true, result });
     });
 
-    //specific order by query //verifyJWT,
-    app.get('/orders', async (req, res) => {
+    //specific order by query 
+    app.get('/orders', verifyJWT, async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
       const result = await orderCollection.find(query).toArray();
@@ -159,6 +174,36 @@ async function run() {
       //   return res.status(403).send({ message: 'forbidden access' });
       // }
     });
+
+    //for user and setting up jwt
+    app.put('/user/:email', async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const filter = { email: email };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: user,
+      };
+      const result = await userCollection.updateOne(filter, updateDoc, options);
+      const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
+      res.send({ result, token });
+    });
+
+    //delete order
+    app.delete('/orders/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await orderCollection.deleteOne(query);
+      res.send({ success: true, result });
+    })
+
+
+    //adding review
+    app.post('/add-review', verifyJWT, async (req, res) => {
+      const review = req.body;
+      const result = await reviewCollection.insertOne(review);
+      res.send({ success: true });
+    })
 
     //* * * * * * * * * * * * * * * * * * END  * * * * * * *  * * * * * * * * * * * * * * * * *//
 
@@ -209,18 +254,7 @@ async function run() {
       res.send(result);
     })
 
-    app.put('/user/:email', async (req, res) => {
-      const email = req.params.email;
-      const user = req.body;
-      const filter = { email: email };
-      const options = { upsert: true };
-      const updateDoc = {
-        $set: user,
-      };
-      const result = await userCollection.updateOne(filter, updateDoc, options);
-      const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
-      res.send({ result, token });
-    });
+
 
     // Warning: This is not the proper way to query multiple collection. 
     // After learning more about mongodb. use aggregate, lookup, pipeline, match, group
