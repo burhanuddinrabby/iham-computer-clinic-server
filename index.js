@@ -110,16 +110,57 @@ async function run() {
     await client.connect();
     console.log('db connected');
     const serviceCollection = client.db('iham-computer-clinic').collection('services');
-    // const bookingCollection = client.db('doctors_portal').collection('bookings');
+    const orderCollection = client.db('iham-computer-clinic').collection('orders');
     // const userCollection = client.db('doctors_portal').collection('users');
     // const doctorCollection = client.db('doctors_portal').collection('doctors');
     // const paymentCollection = client.db('doctors_portal').collection('payments');
 
+    //* * * * * * * * * * * * * * * * * * * * * * * * * * * * *  * * * * * * * * * * * * * * * * *//
+    //all services
     app.get('/services', async (req, res) => {
       const query = {};
       const result = await serviceCollection.find(query).toArray();
       res.send(result)
     })
+
+    //single service
+    app.get('/purchase/:id', async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: ObjectId(id) };
+      const result = await serviceCollection.findOne(query)
+      res.send(result);
+    });
+
+    //sending to orders db
+    app.post('/orders', async (req, res) => {
+      const order = req.body;
+      console.log(order);
+      const result = await orderCollection.insertOne(order);
+      // console.log('sending email');
+      // sendAppointmentEmail(booking);
+      // return 
+      res.send({ success: true });
+      // res.send({ success: true, result });
+    });
+
+    //specific order by query //verifyJWT,
+    app.get('/orders', async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const result = await orderCollection.find(query).toArray();
+      res.send(result);
+      // const decodedEmail = req.decoded.email;
+      // if (email === decodedEmail) {
+      //   const query = { patient: patient };
+      //   const bookings = await orderCollection.find(query).toArray();
+      //   return res.send(bookings);
+      // }
+      // else {
+      //   return res.status(403).send({ message: 'forbidden access' });
+      // }
+    });
+
+    //* * * * * * * * * * * * * * * * * * END  * * * * * * *  * * * * * * * * * * * * * * * * *//
 
     const verifyAdmin = async (req, res, next) => {
       const requester = req.decoded.email;
@@ -144,12 +185,7 @@ async function run() {
       res.send({ clientSecret: paymentIntent.client_secret })
     });
 
-    app.get('/service', async (req, res) => {
-      const query = {};
-      const cursor = serviceCollection.find(query).project({ name: 1 });
-      const services = await cursor.toArray();
-      res.send(services);
-    });
+
 
     app.get('/user', verifyJWT, async (req, res) => {
       const users = await userCollection.find().toArray();
@@ -182,7 +218,7 @@ async function run() {
         $set: user,
       };
       const result = await userCollection.updateOne(filter, updateDoc, options);
-      const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
+      const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
       res.send({ result, token });
     });
 
@@ -196,7 +232,7 @@ async function run() {
 
       // step 2: get the booking of that day. output: [{}, {}, {}, {}, {}, {}]
       const query = { date: date };
-      const bookings = await bookingCollection.find(query).toArray();
+      const bookings = await orderCollection.find(query).toArray();
 
       // step 3: for each service
       services.forEach(service => {
@@ -224,39 +260,14 @@ async function run() {
      * app.delete('/booking/:id) //
     */
 
-    app.get('/booking', verifyJWT, async (req, res) => {
-      const patient = req.query.patient;
-      const decodedEmail = req.decoded.email;
-      if (patient === decodedEmail) {
-        const query = { patient: patient };
-        const bookings = await bookingCollection.find(query).toArray();
-        return res.send(bookings);
-      }
-      else {
-        return res.status(403).send({ message: 'forbidden access' });
-      }
-    });
+
 
     app.get('/booking/:id', verifyJWT, async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
-      const booking = await bookingCollection.findOne(query);
+      const booking = await orderCollection.findOne(query);
       res.send(booking);
     })
-
-
-    app.post('/booking', async (req, res) => {
-      const booking = req.body;
-      const query = { treatment: booking.treatment, date: booking.date, patient: booking.patient }
-      const exists = await bookingCollection.findOne(query);
-      if (exists) {
-        return res.send({ success: false, booking: exists })
-      }
-      const result = await bookingCollection.insertOne(booking);
-      console.log('sending email');
-      sendAppointmentEmail(booking);
-      return res.send({ success: true, result });
-    });
 
     app.patch('/booking/:id', verifyJWT, async (req, res) => {
       const id = req.params.id;
@@ -270,7 +281,7 @@ async function run() {
       }
 
       const result = await paymentCollection.insertOne(payment);
-      const updatedBooking = await bookingCollection.updateOne(filter, updatedDoc);
+      const updatedBooking = await orderCollection.updateOne(filter, updatedDoc);
       res.send(updatedBooking);
     })
 
