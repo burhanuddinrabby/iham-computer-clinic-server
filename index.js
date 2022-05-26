@@ -130,6 +130,13 @@ async function run() {
       res.send({ success: true })
     })
 
+    //delete product
+    app.delete('/service/:id', async (req, res) => {
+      const id = req.params.id;
+      const result = await serviceCollection.deleteOne({ _id: ObjectId(id) });
+      res.send({ success: true })
+    })
+
     //single service
     app.get('/purchase/:id', async (req, res) => {
       const { id } = req.params;
