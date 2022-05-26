@@ -116,6 +116,19 @@ async function run() {
     // const doctorCollection = client.db('doctors_portal').collection('doctors');
     // const paymentCollection = client.db('doctors_portal').collection('payments');
 
+    //__________________________________/
+    const verifyAdmin = async (req, res, next) => {
+      const requester = req.decoded.email;
+      const requesterAccount = await userCollection.findOne({ email: requester });
+      if (requesterAccount.role === 'admin') {
+        next();
+      }
+      else {
+        res.status(403).send({ message: 'forbidden' });
+      }
+    }
+
+
     //* * * * * * * * * * * * * * * * * * * * * * * * * * * * *  * * * * * * * * * * * * * * * * *//
     //all services
     app.get('/services', async (req, res) => {
@@ -171,6 +184,11 @@ async function run() {
       // return 
     });
 
+    //all orders for admin
+    app.get('/all-orders', verifyJWT, verifyAdmin, async (req, res) => {
+      const result = await orderCollection.find({}).toArray();
+      res.send(result);
+    });
     //specific order by query 
     app.get('/orders', verifyJWT, async (req, res) => {
       const email = req.query.email;
@@ -260,19 +278,6 @@ async function run() {
       const users = await userCollection.find({}).toArray();
       res.send(users);
     });
-
-
-    //__________________________________/
-    const verifyAdmin = async (req, res, next) => {
-      const requester = req.decoded.email;
-      const requesterAccount = await userCollection.findOne({ email: requester });
-      if (requesterAccount.role === 'admin') {
-        next();
-      }
-      else {
-        res.status(403).send({ message: 'forbidden' });
-      }
-    }
 
 
 
