@@ -210,6 +210,7 @@ async function run() {
       res.send({ clientSecret: paymentIntent.client_secret })
     });
 
+    //payment collection
     app.patch('/order/:id', verifyJWT, async (req, res) => {
       const id = req.params.id;
       const payment = req.body;
@@ -226,6 +227,16 @@ async function run() {
       res.send(updatedOrder);
     })
 
+    //shipping
+    app.patch('/ship-order/:id', verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const updateDoc = {
+        $set: { shipped: true },
+      };
+      const result = await orderCollection.updateOne(query, updateDoc);
+      res.send({ success: true });
+    });
 
     //making admin
     app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
