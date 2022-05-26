@@ -189,6 +189,20 @@ async function run() {
       res.send({ result, token });
     });
 
+    //adding more info of an user
+    app.put('/user-update/:email', async (req, res) => {
+      const email = req.params.email;
+      const userInfo = req.body;
+      const filter = { email: email };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: userInfo,
+      };
+      const result = await userCollection.updateOne(filter, updateDoc, options);
+      // const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
+      res.send({ success: true });
+    });
+
     //delete order
     app.delete('/orders/:id', async (req, res) => {
       const id = req.params.id;
