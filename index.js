@@ -189,6 +189,14 @@ async function run() {
       res.send({ result, token });
     });
 
+    //accessing an user
+    app.get('/user', async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const result = await userCollection.findOne(query);
+      res.send(result);
+    });
+
     //adding more info of an user
     app.put('/user-update/:email', async (req, res) => {
       const email = req.params.email;
@@ -235,12 +243,13 @@ async function run() {
     })
 
     //getting all users for admin
-    app.get('/user', verifyJWT, async (req, res) => {
+    app.get('/all-users', verifyJWT, async (req, res) => {
       const users = await userCollection.find({}).toArray();
       res.send(users);
     });
-    //* * * * * * * * * * * * * * * * * * END  * * * * * * *  * * * * * * * * * * * * * * * * *//
 
+
+    //__________________________________/
     const verifyAdmin = async (req, res, next) => {
       const requester = req.decoded.email;
       const requesterAccount = await userCollection.findOne({ email: requester });
@@ -251,6 +260,31 @@ async function run() {
         res.status(403).send({ message: 'forbidden' });
       }
     }
+
+
+
+    //making admind
+    app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
+      const email = req.params.email;
+      const filter = { email: email };
+      const updateDoc = {
+        $set: { role: 'admin' },
+      };
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    })
+    //* * * * * * * * * * * * * * * * * * END  * * * * * * *  * * * * * * * * * * * * * * * * *//
+
+    // const verifyAdmin = async (req, res, next) => {
+    //   const requester = req.decoded.email;
+    //   const requesterAccount = await userCollection.findOne({ email: requester });
+    //   if (requesterAccount.role === 'admin') {
+    //     next();
+    //   }
+    //   else {
+    //     res.status(403).send({ message: 'forbidden' });
+    //   }
+    // }
 
     app.post('/create-payment-intent', verifyJWT, async (req, res) => {
       const service = req.body;
