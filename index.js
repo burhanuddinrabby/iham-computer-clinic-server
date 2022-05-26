@@ -3,8 +3,6 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-var nodemailer = require('nodemailer');
-var sgTransport = require('nodemailer-sendgrid-transport');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
@@ -31,79 +29,6 @@ function verifyJWT(req, res, next) {
   });
 }
 
-const emailSenderOptions = {
-  auth: {
-    api_key: process.env.EMAIL_SENDER_KEY
-  }
-}
-
-const emailClient = nodemailer.createTransport(sgTransport(emailSenderOptions));
-
-function sendAppointmentEmail(booking) {
-  const { patient, patientName, treatment, date, slot } = booking;
-
-  var email = {
-    from: process.env.EMAIL_SENDER,
-    to: patient,
-    subject: `Your Appointment for ${treatment} is on ${date} at ${slot} is Confirmed`,
-    text: `Your Appointment for ${treatment} is on ${date} at ${slot} is Confirmed`,
-    html: `
-      <div>
-        <p> Hello ${patientName}, </p>
-        <h3>Your Appointment for ${treatment} is confirmed</h3>
-        <p>Looking forward to seeing you on ${date} at ${slot}.</p>
-        
-        <h3>Our Address</h3>
-        <p>Andor Killa Bandorban</p>
-        <p>Bangladesh</p>
-        <a href="https://web.programming-hero.com/">unsubscribe</a>
-      </div>
-    `
-  };
-
-  emailClient.sendMail(email, function (err, info) {
-    if (err) {
-      console.log(err);
-    }
-    else {
-      console.log('Message sent: ', info);
-    }
-  });
-
-}
-function sendPaymentConfirmationEmail(booking) {
-  const { patient, patientName, treatment, date, slot } = booking;
-
-  var email = {
-    from: process.env.EMAIL_SENDER,
-    to: patient,
-    subject: `We have received your payment for ${treatment} is on ${date} at ${slot} is Confirmed`,
-    text: `Your payment for this Appointment ${treatment} is on ${date} at ${slot} is Confirmed`,
-    html: `
-      <div>
-        <p> Hello ${patientName}, </p>
-        <h3>Thank you for your payment . </h3>
-        <h3>We have received your payment</h3>
-        <p>Looking forward to seeing you on ${date} at ${slot}.</p>
-        <h3>Our Address</h3>
-        <p>Andor Killa Bandorban</p>
-        <p>Bangladesh</p>
-        <a href="https://web.programming-hero.com/">unsubscribe</a>
-      </div>
-    `
-  };
-
-  emailClient.sendMail(email, function (err, info) {
-    if (err) {
-      console.log(err);
-    }
-    else {
-      console.log('Message sent: ', info);
-    }
-  });
-
-}
-
 
 async function run() {
   try {
@@ -113,10 +38,9 @@ async function run() {
     const orderCollection = client.db('iham-computer-clinic').collection('orders');
     const userCollection = client.db('iham-computer-clinic').collection('users');
     const reviewCollection = client.db('iham-computer-clinic').collection('reviews');
-    // const doctorCollection = client.db('doctors_portal').collection('doctors');
-    // const paymentCollection = client.db('doctors_portal').collection('payments');
+    const paymentCollection = client.db('iham-computer-clinic').collection('payments');
 
-    //__________________________________/
+    //______________________________________________________//
     const verifyAdmin = async (req, res, next) => {
       const requester = req.decoded.email;
       const requesterAccount = await userCollection.findOne({ email: requester });
@@ -169,8 +93,6 @@ async function run() {
         $set: { available },
       };
       const result = await serviceCollection.updateOne(query, updateDoc, options);
-      // const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
-      // res.send({ result, token });
       res.send({ message: 'updated' });
     });
 
@@ -179,9 +101,6 @@ async function run() {
       const order = req.body;
       const result = await orderCollection.insertOne(order);
       res.send({ success: true });
-      // console.log('sending email');
-      // sendAppointmentEmail(booking);
-      // return 
     });
 
     //all orders for admin
@@ -195,15 +114,6 @@ async function run() {
       const query = { email: email };
       const result = await orderCollection.find(query).toArray();
       res.send(result);
-      // const decodedEmail = req.decoded.email;
-      // if (email === decodedEmail) {
-      //   const query = { patient: patient };
-      //   const bookings = await orderCollection.find(query).toArray();
-      //   return res.send(bookings);
-      // }
-      // else {
-      //   return res.status(403).send({ message: 'forbidden access' });
-      // }
     });
 
     //for user and setting up jwt
@@ -279,34 +189,18 @@ async function run() {
       res.send(users);
     });
 
-
-
-    //making admind
-    app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
-      const email = req.params.email;
-      const filter = { email: email };
-      const updateDoc = {
-        $set: { role: 'admin' },
-      };
-      const result = await userCollection.updateOne(filter, updateDoc);
+    //getting item for payment
+    app.get('/order/:id', verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await orderCollection.findOne(query);
       res.send(result);
     })
-    //* * * * * * * * * * * * * * * * * * END  * * * * * * *  * * * * * * * * * * * * * * * * *//
 
-    // const verifyAdmin = async (req, res, next) => {
-    //   const requester = req.decoded.email;
-    //   const requesterAccount = await userCollection.findOne({ email: requester });
-    //   if (requesterAccount.role === 'admin') {
-    //     next();
-    //   }
-    //   else {
-    //     res.status(403).send({ message: 'forbidden' });
-    //   }
-    // }
-
+    //payment
     app.post('/create-payment-intent', verifyJWT, async (req, res) => {
       const service = req.body;
-      const price = service.price;
+      const price = service.totalPrice;
       const amount = price * 100;
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amount,
@@ -316,77 +210,7 @@ async function run() {
       res.send({ clientSecret: paymentIntent.client_secret })
     });
 
-
-
-
-
-    app.get('/admin/:email', async (req, res) => {
-      const email = req.params.email;
-      const user = await userCollection.findOne({ email: email });
-      const isAdmin = user.role === 'admin';
-      res.send({ admin: isAdmin })
-    })
-
-    app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
-      const email = req.params.email;
-      const filter = { email: email };
-      const updateDoc = {
-        $set: { role: 'admin' },
-      };
-      const result = await userCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    })
-
-
-
-    // Warning: This is not the proper way to query multiple collection. 
-    // After learning more about mongodb. use aggregate, lookup, pipeline, match, group
-    app.get('/available', async (req, res) => {
-      const date = req.query.date;
-
-      // step 1:  get all services
-      const services = await serviceCollection.find().toArray();
-
-      // step 2: get the booking of that day. output: [{}, {}, {}, {}, {}, {}]
-      const query = { date: date };
-      const bookings = await orderCollection.find(query).toArray();
-
-      // step 3: for each service
-      services.forEach(service => {
-        // step 4: find bookings for that service. output: [{}, {}, {}, {}]
-        const serviceBookings = bookings.filter(book => book.treatment === service.name);
-        // step 5: select slots for the service Bookings: ['', '', '', '']
-        const bookedSlots = serviceBookings.map(book => book.slot);
-        // step 6: select those slots that are not in bookedSlots
-        const available = service.slots.filter(slot => !bookedSlots.includes(slot));
-        //step 7: set available to slots to make it easier 
-        service.slots = available;
-      });
-
-
-      res.send(services);
-    })
-
-    /**
-     * API Naming Convention
-     * app.get('/booking') // get all bookings in this collection. or get more than one or by filter
-     * app.get('/booking/:id') // get a specific booking 
-     * app.post('/booking') // add a new booking
-     * app.patch('/booking/:id) //
-     * app.put('/booking/:id') // upsert ==> update (if exists) or insert (if doesn't exist)
-     * app.delete('/booking/:id) //
-    */
-
-
-
-    app.get('/booking/:id', verifyJWT, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: ObjectId(id) };
-      const booking = await orderCollection.findOne(query);
-      res.send(booking);
-    })
-
-    app.patch('/booking/:id', verifyJWT, async (req, res) => {
+    app.patch('/order/:id', verifyJWT, async (req, res) => {
       const id = req.params.id;
       const payment = req.body;
       const filter = { _id: ObjectId(id) };
@@ -398,28 +222,22 @@ async function run() {
       }
 
       const result = await paymentCollection.insertOne(payment);
-      const updatedBooking = await orderCollection.updateOne(filter, updatedDoc);
-      res.send(updatedBooking);
+      const updatedOrder = await orderCollection.updateOne(filter, updatedDoc);
+      res.send(updatedOrder);
     })
 
-    app.get('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
-      const doctors = await doctorCollection.find().toArray();
-      res.send(doctors);
-    })
 
-    app.post('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
-      const doctor = req.body;
-      const result = await doctorCollection.insertOne(doctor);
-      res.send(result);
-    });
-
-    app.delete('/doctor/:email', verifyJWT, verifyAdmin, async (req, res) => {
+    //making admin
+    app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.params.email;
       const filter = { email: email };
-      const result = await doctorCollection.deleteOne(filter);
+      const updateDoc = {
+        $set: { role: 'admin' },
+      };
+      const result = await userCollection.updateOne(filter, updateDoc);
       res.send(result);
     })
-
+    //* * * * * * * * * * * * * * * * * * END  * * * * * * *  * * * * * * * * * * * * * * * * *//
   }
   finally {
 
