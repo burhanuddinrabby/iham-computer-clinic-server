@@ -225,6 +225,20 @@ async function run() {
       res.send(result);
     })
 
+
+    //user admin or not
+    app.get('/admin/:email', async (req, res) => {
+      const email = req.params.email;
+      const user = await userCollection.findOne({ email: email });
+      const isAdmin = user.role === 'admin';
+      res.send({ admin: isAdmin })
+    })
+
+    //getting all users for admin
+    app.get('/user', verifyJWT, async (req, res) => {
+      const users = await userCollection.find({}).toArray();
+      res.send(users);
+    });
     //* * * * * * * * * * * * * * * * * * END  * * * * * * *  * * * * * * * * * * * * * * * * *//
 
     const verifyAdmin = async (req, res, next) => {
@@ -252,10 +266,7 @@ async function run() {
 
 
 
-    app.get('/user', verifyJWT, async (req, res) => {
-      const users = await userCollection.find().toArray();
-      res.send(users);
-    });
+
 
     app.get('/admin/:email', async (req, res) => {
       const email = req.params.email;
