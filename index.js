@@ -124,6 +124,12 @@ async function run() {
       res.send(result)
     })
 
+    app.post('/services', async (req, res) => {
+      const product = req.body;
+      const result = await serviceCollection.insertOne(product);
+      res.send({ success: true })
+    })
+
     //single service
     app.get('/purchase/:id', async (req, res) => {
       const { id } = req.params;
